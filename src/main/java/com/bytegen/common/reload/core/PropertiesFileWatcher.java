@@ -2,6 +2,7 @@ package com.bytegen.common.reload.core;
 
 import com.bytegen.common.reload.event.EventPublisher;
 import com.google.common.collect.Maps;
+import com.sun.nio.file.SensitivityWatchEventModifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanInitializationException;
@@ -17,8 +18,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
 /**
  * The watching process does not start by default, initiation is triggered by calling <code>startWatching()</code>
@@ -111,7 +110,9 @@ public class PropertiesFileWatcher {
                 log.debug("Watching for modification events for path {}", this.path.toString());
                 while (!Thread.currentThread()
                         .isInterrupted()) {
-                    final WatchKey pathBeingWatched = this.path.register(getWatchService(), ENTRY_MODIFY);
+                    final WatchKey pathBeingWatched = this.path.register(getWatchService(),
+                            new WatchEvent.Kind[]{StandardWatchEventKinds.ENTRY_MODIFY},
+                            SensitivityWatchEventModifier.HIGH);
 
                     WatchKey watchKey = null;
                     try {

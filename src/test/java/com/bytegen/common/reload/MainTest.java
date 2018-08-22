@@ -52,7 +52,7 @@ public class MainTest {
         final OutputStream newOutputStream = Files.newOutputStream(new File(DIR + PROPERTIES).toPath(), new OpenOption[]{});
         this.loadedProperties.store(newOutputStream, null);
 
-        Thread.sleep(10000); // this is a hack
+        Thread.sleep(3000); // this is a hack
         assertThat(this.reloadingPropertyBean.getStringProperty(), is("Injected String Value"));
         assertThat(this.reloadingPropertyBean.getCompositeStringProperty(), is("Hello, World!"));
     }
@@ -69,7 +69,7 @@ public class MainTest {
         newOutputStream.flush();
         newOutputStream.close();
 
-        Thread.sleep(10000); // this is a hack
+        Thread.sleep(3000); // this is a hack
         assertThat(this.reloadingPropertyBean.getStringProperty(), is("Altered Injected String Value"));
     }
 
@@ -86,7 +86,7 @@ public class MainTest {
         newOutputStream.flush();
         newOutputStream.close();
 
-        Thread.sleep(10000); // this is a hack
+        Thread.sleep(3000); // this is a hack
         assertThat(this.reloadingPropertyBean.getCompositeStringProperty(), is("Goodbye, World!"));
     }
 
@@ -103,7 +103,7 @@ public class MainTest {
         newOutputStream.flush();
         newOutputStream.close();
 
-        Thread.sleep(10000);
+        Thread.sleep(3000);
         assertThat(this.reloadingPropertyBean.getCompositeStringProperty(), is("Hello, Universe!"));
     }
 
@@ -119,7 +119,7 @@ public class MainTest {
         newOutputStream.flush();
         newOutputStream.close();
 
-        Thread.sleep(10000);
+        Thread.sleep(3000);
         assertThat(this.reloadingPropertyBean.getListProperty(), is(Arrays.asList("Altered Value1", "Altered Value2", "Altered Value3")));
     }
 }
