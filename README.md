@@ -70,7 +70,7 @@ public class ConfigSample {
     }
     
     @ReloadValue(value = "the_key", conversion = ListPropertyConversion.class)
-    private List<Integer> keyed;
+    private List<String> keyed;
 }
 
 ```

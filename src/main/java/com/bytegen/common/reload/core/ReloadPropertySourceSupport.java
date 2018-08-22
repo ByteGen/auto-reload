@@ -9,6 +9,7 @@ import com.bytegen.common.reload.event.EventNotifier;
 import com.bytegen.common.reload.event.GuavaEventNotifier;
 import com.bytegen.common.reload.resolver.PropertyResolver;
 import com.bytegen.common.reload.resolver.SubstitutingPropertyResolver;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.config.InstantiationAwareBeanPostProcessorAdapter;
 import org.springframework.core.annotation.AnnotationAttributes;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.EncodedResource;
@@ -28,7 +30,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ReflectionUtils;
-import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -57,6 +58,8 @@ import java.util.*;
 public class ReloadPropertySourceSupport extends InstantiationAwareBeanPostProcessorAdapter {
     private static final Logger log = LoggerFactory.getLogger(ReloadPropertySourceSupport.class);
 
+    @Resource
+    private Environment environment;
     @Resource
     private ConfigurableBeanFactory configurableBeanFactory;
     @Resource
@@ -112,19 +115,35 @@ public class ReloadPropertySourceSupport extends InstantiationAwareBeanPostProce
         return Pair.of(locations, properties);
     }
 
+    private String resolveEnvironmentProperty(String text) {
+        if (null != text) {
+            return environment.resolveRequiredPlaceholders(text);
+        }
+        return null;
+    }
+
     private void processReloadResourceAttributes(AnnotationAttributes propertySource, Properties properties, Set<EncodedResource> encodedResources) throws BeanDefinitionStoreException {
         ResourceLoader resourceLoader = new DefaultResourceLoader();
-        String encoding = propertySource.getString("encoding");
-        if (!StringUtils.hasLength(encoding)) {
+        String encoding = resolveEnvironmentProperty(propertySource.getString("encoding"));
+        if (StringUtils.isBlank(encoding)) {
             encoding = null;
         }
         String[] locations = propertySource.getStringArray("value");
+
         Assert.isTrue(locations.length > 0, "At least one @ReloadResource(value) location is required");
         boolean ignoreResourceNotFound = propertySource.getBoolean("ignoreResourceNotFound");
 
         for (String location : locations) {
             try {
-                EncodedResource encodedResource = new EncodedResource(resourceLoader.getResource(location), encoding);
+                String resolved = resolveEnvironmentProperty(location);
+                if (StringUtils.isBlank(resolved)) {
+                    if (log.isInfoEnabled()) {
+                        log.warn("Properties location [" + location + "] is blank, skipped.");
+                    }
+                    continue;
+                }
+
+                EncodedResource encodedResource = new EncodedResource(resourceLoader.getResource(resolved), encoding);
                 Properties props = PropertiesLoaderUtils.loadProperties(encodedResource);
 
                 encodedResources.add(encodedResource);

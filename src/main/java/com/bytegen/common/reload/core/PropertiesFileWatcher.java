@@ -142,7 +142,7 @@ public class PropertiesFileWatcher {
                     }
                 }
             } catch (final Exception e) {
-                log.error("Exception thrown when watching resources, path {}\nException:", this.path.toString(), e.getMessage());
+                log.error("Exception thrown when watching resources, path {}\nException:", this.path.toString(), e);
                 stop();
             }
         }

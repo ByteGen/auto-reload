@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-@ReloadResource(value = {"application.properties", "classpath:app.properties"}, ignoreResourceNotFound = true)
+@ReloadResource(value = {"application.properties", "classpath:app.properties", "${reloadable.path:}"}, ignoreResourceNotFound = true)
 public class ReloadingPropertyBean {
 
     @ReloadValue(value = "reloadable.stringValue")
