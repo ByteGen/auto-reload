@@ -19,32 +19,25 @@ import java.util.List;
 @Component
 public class ReloadResourceFactoryProcessor implements BeanFactoryPostProcessor {
 
-    private List<AnnotatedBeanDefinition> candidates;
+    private List<AnnotatedBeanDefinition> reloadResourceCandidates = new ArrayList<>();
 
-    public List<AnnotatedBeanDefinition> getCandidates() {
-        return candidates;
+    public List<AnnotatedBeanDefinition> getReloadResourceCandidates() {
+        return reloadResourceCandidates;
     }
 
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
-        candidates = getCandidates(beanFactory);
-    }
-
-    private List<AnnotatedBeanDefinition> getCandidates(ConfigurableListableBeanFactory beanFactory) {
-        List<AnnotatedBeanDefinition> candidates = new ArrayList<>();
-
         String[] candidateNames = beanFactory.getBeanDefinitionNames();
         for (String beanName : candidateNames) {
             BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
             // String className = bd.getBeanClassName();
 
-            if (bd instanceof AnnotatedBeanDefinition &&
-                    /*className.equals(((AnnotatedBeanDefinition) bd).getMetadata().getClassName()) &&*/
-                    ((AnnotatedBeanDefinition) bd).getMetadata().isAnnotated(ReloadResource.class.getCanonicalName())) {
-
-                candidates.add((AnnotatedBeanDefinition) bd);
+            if (bd instanceof AnnotatedBeanDefinition) {
+                    /*&& className.equals(((AnnotatedBeanDefinition) bd).getMetadata().getClassName()) &&*/
+                if (((AnnotatedBeanDefinition) bd).getMetadata().isAnnotated(ReloadResource.class.getCanonicalName())) {
+                    reloadResourceCandidates.add((AnnotatedBeanDefinition) bd);
+                }
             }
         }
-        return candidates;
     }
 }

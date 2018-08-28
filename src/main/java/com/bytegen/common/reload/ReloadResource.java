@@ -16,7 +16,7 @@ import java.lang.annotation.*;
  * <p>Given a file {@code app.properties} containing the key/value pair
  * {@code reloadable.stringValue=testValue}, the following {@code @Configuration} class
  * uses {@code @ReloadResource} to contribute {@code app.properties} to the
- * {@code ReloadPropertySourceSupport}.
+ * {@link com.bytegen.common.reload.core.ReloadSourcePropertySupport}.
  * <p>
  * <pre class="code">
  * &#064;Configuration
@@ -36,8 +36,8 @@ import java.lang.annotation.*;
  * <p>
  * In order to resolve properties in {@code <bean>} definitions or {@code @ReloadValue}
  * annotations using properties from a {@code Resource}, one must register a
- * {@code ReloadablePropertySourceSupport}. This happens automatically when using
- * component-scanning, but must be explicitly registered using a {@code static}
+ * {@link com.bytegen.common.reload.core.ReloadSourcePropertySupport}. This happens automatically
+ * when using component-scanning, but must be explicitly registered using a {@code static}
  * {@code @Bean} method when using {@code @Configuration} classes. See the
  * "Working with externalized values" section of @{@link Configuration}'s javadoc and
  * "a note on BeanFactoryPostProcessor-returning @Bean methods" of @{@link Bean}'s javadoc

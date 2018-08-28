@@ -8,14 +8,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanInitializationException;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.EncodedResource;
+import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.WatchEvent.Kind;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,6 +30,13 @@ public class PropertiesFileWatcher {
     private final ExecutorService service;
 
     public PropertiesFileWatcher(final Set<EncodedResource> locations, final EventPublisher eventPublisher) throws IOException {
+        if (null == eventPublisher) {
+            throw new BeanInitializationException("Event publisher not setup...");
+        }
+        if (null == locations || locations.isEmpty()) {
+            throw new BeanInitializationException("Resource locations is empty...");
+        }
+
         this.locations = locations;
         this.eventPublisher = eventPublisher;
         this.watchService = FileSystems.getDefault().newWatchService();
@@ -39,10 +44,6 @@ public class PropertiesFileWatcher {
     }
 
     public void startWatching() {
-        if (null == this.eventPublisher) {
-            throw new BeanInitializationException("Event publisher not setup, you should not be calling this method...!");
-        }
-
         final Map<Path, List<EncodedResource>> pathsAndResources = findAvailableResourcePaths();
         for (final Path pathToWatch : pathsAndResources.keySet()) {
             final List<EncodedResource> availableResources = pathsAndResources.get(pathToWatch);
@@ -84,8 +85,9 @@ public class PropertiesFileWatcher {
         return null;
     }
 
-    private void publishResourceChangedEvent(final EncodedResource resource) {
-        this.eventPublisher.onResourceChanged(resource);
+    private void publishResourceChangedEvent(final EncodedResource resource) throws IOException {
+        final Properties reloadedProperties = PropertiesLoaderUtils.loadProperties(resource);
+        this.eventPublisher.onPropertyChanged(reloadedProperties);
     }
 
     private WatchService getWatchService() {
@@ -108,8 +110,7 @@ public class PropertiesFileWatcher {
             try {
                 log.debug("START");
                 log.debug("Watching for modification events for path {}", this.path.toString());
-                while (!Thread.currentThread()
-                        .isInterrupted()) {
+                while (!Thread.currentThread().isInterrupted()) {
                     final WatchKey pathBeingWatched = this.path.register(getWatchService(),
                             new WatchEvent.Kind[]{StandardWatchEventKinds.ENTRY_MODIFY},
                             SensitivityWatchEventModifier.HIGH);
@@ -136,8 +137,7 @@ public class PropertiesFileWatcher {
                         }
                         if (!watchKey.reset()) {
                             log.debug("END");
-                            Thread.currentThread()
-                                    .interrupt();
+                            Thread.currentThread().interrupt();
                             return;
                         }
                     }

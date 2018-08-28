@@ -1,10 +1,10 @@
 package com.bytegen.common.reload.event;
 
-import org.springframework.core.io.support.EncodedResource;
+import java.util.Properties;
 
 /**
  * Publish {@link com.bytegen.common.reload.bean.PropertyChangedEvent} on resource updated
  */
 public interface EventPublisher {
-    void onResourceChanged(EncodedResource resource);
+    void onPropertyChanged(Properties properties);
 }

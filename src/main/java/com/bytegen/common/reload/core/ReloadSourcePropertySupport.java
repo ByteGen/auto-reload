@@ -6,6 +6,7 @@ import com.bytegen.common.reload.bean.BeanPropertyHolder;
 import com.bytegen.common.reload.conversion.DefaultPropertyConversion;
 import com.bytegen.common.reload.conversion.PropertyConversion;
 import com.bytegen.common.reload.event.EventNotifier;
+import com.bytegen.common.reload.event.EventPublisher;
 import com.bytegen.common.reload.event.GuavaEventNotifier;
 import com.bytegen.common.reload.resolver.PropertyResolver;
 import com.bytegen.common.reload.resolver.SubstitutingPropertyResolver;
@@ -55,8 +56,8 @@ import java.util.*;
  * </p>
  */
 @Component
-public class ReloadPropertySourceSupport extends InstantiationAwareBeanPostProcessorAdapter {
-    private static final Logger log = LoggerFactory.getLogger(ReloadPropertySourceSupport.class);
+public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProcessorAdapter {
+    private static final Logger log = LoggerFactory.getLogger(ReloadSourcePropertySupport.class);
 
     @Resource
     private Environment environment;
@@ -76,20 +77,23 @@ public class ReloadPropertySourceSupport extends InstantiationAwareBeanPostProce
     @PostConstruct
     protected void startReloading() {
         log.info("Loading Reloadable Properties resources...");
-        Pair<Set<EncodedResource>, Properties> resourceAndProperties = loadResources(reloadResourceFactoryProcessor.getCandidates());
+        Pair<Set<EncodedResource>, Properties> resourceAndProperties = loadResources(reloadResourceFactoryProcessor.getReloadResourceCandidates());
         this.locations = resourceAndProperties.getLeft();
         this.properties = resourceAndProperties.getRight();
 
         log.info("Registering ReloadPropertyPubSub for properties file changes");
         if (null == locations || locations.isEmpty() || null == properties) {
-            log.info("Locations or properties are null, break for reloadable property support...!");
+            log.info("Locations are empty, break for reloadable source property support...!");
             return;
         }
 
         try {
+            log.info("Start watching for properties file changes");
+            EventPublisher publisher = new ReloadPropertyEventPublisher(properties, propertyResolver, eventNotifier);
+            // Here we actually create and set a FileWatcher to monitor the given locations
+            new PropertiesFileWatcher(locations, publisher).startWatching();
+
             defaultPropertyConversion = new DefaultPropertyConversion(configurableBeanFactory.getTypeConverter());
-            new ReloadPropertyEventPublisher(locations, properties,
-                    propertyResolver, eventNotifier);
             new ReloadPropertyEventSubscriber(eventNotifier, beanPropertySubscriptions, defaultPropertyConversion);
 
         } catch (final IOException e) {
