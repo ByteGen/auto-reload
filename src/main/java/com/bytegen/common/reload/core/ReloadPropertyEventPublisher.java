@@ -1,6 +1,5 @@
 package com.bytegen.common.reload.core;
 
-import com.bytegen.common.reload.bean.BeanPropertyHolder;
 import com.bytegen.common.reload.bean.PropertyChangedEvent;
 import com.bytegen.common.reload.event.EventNotifier;
 import com.bytegen.common.reload.event.EventPublisher;
@@ -9,7 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Properties;
 
 /**
  * User: xiang
@@ -22,20 +22,18 @@ public class ReloadPropertyEventPublisher implements EventPublisher {
     private final MutablePropertyResolver propertyResolver;
     private final EventNotifier eventNotifier;
 
-    private final Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions;
-    private final Map<String, String> subscribePropertyCache;
+    private final Map<String, String> resolvedBeanProperty;
 
     public ReloadPropertyEventPublisher(MutablePropertyResolver propertyResolver,
                                         EventNotifier eventNotifier,
-                                        Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions) {
+                                        Map<String, String> resolvedBeanProperty) {
         Assert.notNull(propertyResolver, "Property resolver must not be null");
         Assert.notNull(eventNotifier, "Event notifier can not be null");
+        Assert.notNull(resolvedBeanProperty, "Resolved property map can not be null");
 
         this.propertyResolver = propertyResolver;
         this.eventNotifier = eventNotifier;
-        this.beanPropertySubscriptions = (null == beanPropertySubscriptions) ?
-                Collections.emptyMap() : beanPropertySubscriptions;
-        this.subscribePropertyCache = new HashMap<>();
+        this.resolvedBeanProperty = resolvedBeanProperty;
     }
 
     public MutablePropertyResolver getPropertyResolver() {
@@ -58,13 +56,13 @@ public class ReloadPropertyEventPublisher implements EventPublisher {
             }
         }
 
-        for (final String key : this.beanPropertySubscriptions.keySet()) {
-            final String oldValue = this.subscribePropertyCache.get(key);
+        for (final String key : this.resolvedBeanProperty.keySet()) {
+            final String oldValue = this.resolvedBeanProperty.get(key);
             final String newValue = this.propertyResolver.resolvePlaceholders(key);
 
             if (propertyChangedAndNotNull(oldValue, newValue)) {
                 // Update cache
-                this.subscribePropertyCache.put(key, newValue);
+                this.resolvedBeanProperty.put(key, newValue);
 
                 // Post change event to notify any potential listeners
                 this.eventNotifier.post(new PropertyChangedEvent(key, oldValue, newValue));

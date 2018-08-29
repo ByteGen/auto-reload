@@ -6,7 +6,6 @@ import com.bytegen.common.reload.bean.BeanPropertyHolder;
 import com.bytegen.common.reload.conversion.DefaultPropertyConversion;
 import com.bytegen.common.reload.conversion.PropertyConversion;
 import com.bytegen.common.reload.event.EventNotifier;
-import com.bytegen.common.reload.event.EventPublisher;
 import com.bytegen.common.reload.event.GuavaEventNotifier;
 import com.bytegen.common.reload.resolver.PropertiesPropertyResolver;
 import org.apache.commons.lang3.StringUtils;
@@ -65,7 +64,10 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
     private final EventNotifier eventNotifier = GuavaEventNotifier.getInstance();
     private final PropertiesPropertyResolver propertyResolver = new PropertiesPropertyResolver();
 
+    private final Map<String, String> resolvedBeanProperty = new HashMap<>();
     private final Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions = new HashMap<>();
+    private final ReloadPropertyEventPublisher publisher = new ReloadPropertyEventPublisher(propertyResolver, eventNotifier, resolvedBeanProperty);
+    private final ReloadPropertyEventSubscriber subscriber = new ReloadPropertyEventSubscriber(eventNotifier, beanPropertySubscriptions);
 
     @Override
     public void afterPropertiesSet() throws Exception {
@@ -83,9 +85,6 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
 
         try {
             log.info("Start watching for properties file changes");
-            EventPublisher publisher = new ReloadPropertyEventPublisher(propertyResolver, eventNotifier, beanPropertySubscriptions);
-            new ReloadPropertyEventSubscriber(eventNotifier, beanPropertySubscriptions);
-
             // Here we actually create and set a FileWatcher to monitor the given locations
             new PropertiesFileWatcher(locations, publisher).startWatching();
         } catch (final IOException e) {
@@ -181,7 +180,7 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
                     ReflectionUtils.makeAccessible(field);
                     validateFieldNotFinal(bean, field);
 
-                    final Object propertyValue = propertyResolver.resolvePlaceholders(annotation.value());
+                    final String propertyValue = propertyResolver.resolvePlaceholders(annotation.value());
                     validatePropertyAvailableOrDefaultSet(bean, field, annotation, propertyValue);
 
                     if (null != propertyValue) {
@@ -195,7 +194,7 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
 
                         field.set(bean, convertedProperty);
 
-                        subscribeBeanToPropertyChangedEvent(annotation.value(), new BeanPropertyHolder(bean, field));
+                        subscribeBeanToPropertyChangedEvent(annotation.value(), propertyValue, new BeanPropertyHolder(bean, field));
                     } else {
                         log.info("Leaving field [{}] of class [{}] with default value",
                                 field.getName(), bean.getClass().getCanonicalName());
@@ -229,7 +228,8 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
         }
     }
 
-    private void subscribeBeanToPropertyChangedEvent(final String propertyName, final BeanPropertyHolder fieldProperty) {
+    private void subscribeBeanToPropertyChangedEvent(final String propertyName, final String propertyValue, final BeanPropertyHolder fieldProperty) {
+        this.resolvedBeanProperty.put(propertyName, propertyValue);
         this.beanPropertySubscriptions.computeIfAbsent(propertyName, k -> new HashSet<>());
         this.beanPropertySubscriptions.get(propertyName).add(fieldProperty);
     }

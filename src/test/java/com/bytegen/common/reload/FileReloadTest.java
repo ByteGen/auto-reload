@@ -26,7 +26,7 @@ import static org.junit.Assert.assertThat;
  */
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = Application.class)
-public class MainTest {
+public class FileReloadTest {
 
     @Resource
     ReloadingPropertyBean reloadingPropertyBean;
