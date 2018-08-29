@@ -1,16 +1,15 @@
 package com.bytegen.common.reload.core;
 
+import com.bytegen.common.reload.bean.BeanPropertyHolder;
 import com.bytegen.common.reload.bean.PropertyChangedEvent;
 import com.bytegen.common.reload.event.EventNotifier;
 import com.bytegen.common.reload.event.EventPublisher;
-import com.bytegen.common.reload.resolver.PropertyResolver;
+import com.bytegen.common.reload.resolver.MutablePropertyResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * User: xiang
@@ -20,27 +19,26 @@ import java.util.Properties;
 public class ReloadPropertyEventPublisher implements EventPublisher {
     private static Logger log = LoggerFactory.getLogger(ReloadPropertyEventPublisher.class);
 
-    private Properties properties;
-
-    private final PropertyResolver propertyResolver;
+    private final MutablePropertyResolver propertyResolver;
     private final EventNotifier eventNotifier;
 
-    public ReloadPropertyEventPublisher(Properties properties, PropertyResolver propertyResolver,
-                                        EventNotifier eventNotifier) {
-        Assert.notNull(properties, "Properties must not be null");
-        Assert.notNull(propertyResolver, "PropertyResolver must not be null");
-        Assert.notNull(eventNotifier, "EventNotifier can not be null");
+    private final Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions;
+    private final Map<String, String> subscribePropertyCache;
 
-        this.properties = properties;
+    public ReloadPropertyEventPublisher(MutablePropertyResolver propertyResolver,
+                                        EventNotifier eventNotifier,
+                                        Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions) {
+        Assert.notNull(propertyResolver, "Property resolver must not be null");
+        Assert.notNull(eventNotifier, "Event notifier can not be null");
+
         this.propertyResolver = propertyResolver;
         this.eventNotifier = eventNotifier;
+        this.beanPropertySubscriptions = (null == beanPropertySubscriptions) ?
+                Collections.emptyMap() : beanPropertySubscriptions;
+        this.subscribePropertyCache = new HashMap<>();
     }
 
-    public Properties getProperties() {
-        return properties;
-    }
-
-    public PropertyResolver getPropertyResolver() {
+    public MutablePropertyResolver getPropertyResolver() {
         return propertyResolver;
     }
 
@@ -50,38 +48,36 @@ public class ReloadPropertyEventPublisher implements EventPublisher {
 
     @Override
     public void onPropertyChanged(final Properties properties) {
-        Map<String, String> cacheUpdated = new HashMap<>();
-        // Copy for compare
-        Properties newProperties = new Properties(this.getProperties());
-        newProperties.putAll(properties);
+        // Update properties of resolver
+        for (String key : properties.stringPropertyNames()) {
+            String newValue = properties.getProperty(key);
+            String oldValue = this.propertyResolver.getPropertyAsRawString(key);
 
-        for (final String propertyName : this.getProperties().stringPropertyNames()) {
-            final String oldValue = this.propertyResolver.resolveProperty(this.getProperties(), propertyName).toString();
-            final String newValue = this.propertyResolver.resolveProperty(newProperties, propertyName).toString();
-
-            if (propertyExistsAndNotNull(propertyName, newValue) && propertyChange(oldValue, newValue)) {
-                // Temporary cache
-                cacheUpdated.put(propertyName, newValue);
-
-                // Post change event to notify any potential listeners
-                this.eventNotifier.post(new PropertyChangedEvent(propertyName, oldValue, newValue));
-                log.info("Publish property changes for [{}] with new value [{}]", propertyName, newValue);
+            if (propertyExists(key) && propertyChangedAndNotNull(oldValue, newValue)) {
+                this.propertyResolver.setProperty(key, newValue);
             }
         }
 
-        if (!cacheUpdated.isEmpty()) {
-            // Update locally stored copy of properties
-            cacheUpdated.forEach((propertyName, newValue) -> {
-                this.getProperties().setProperty(propertyName, newValue);
-            });
+        for (final String key : this.beanPropertySubscriptions.keySet()) {
+            final String oldValue = this.subscribePropertyCache.get(key);
+            final String newValue = this.propertyResolver.resolvePlaceholders(key);
+
+            if (propertyChangedAndNotNull(oldValue, newValue)) {
+                // Update cache
+                this.subscribePropertyCache.put(key, newValue);
+
+                // Post change event to notify any potential listeners
+                this.eventNotifier.post(new PropertyChangedEvent(key, oldValue, newValue));
+                log.info("Publish property changes for [{}] with new value [{}]", key, newValue);
+            }
         }
     }
 
-    private boolean propertyChange(final String oldValue, final String newValue) {
-        return null == oldValue || !oldValue.equals(newValue);
+    private boolean propertyChangedAndNotNull(final String oldValue, final String newValue) {
+        return null != newValue && (null == oldValue || !oldValue.equals(newValue));
     }
 
-    private boolean propertyExistsAndNotNull(final String property, final String newValue) {
-        return this.getProperties().containsKey(property) && null != newValue;
+    private boolean propertyExists(final String property) {
+        return this.propertyResolver.propertyNames().contains(property);
     }
 }

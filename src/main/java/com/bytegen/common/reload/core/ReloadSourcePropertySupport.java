@@ -8,8 +8,7 @@ import com.bytegen.common.reload.conversion.PropertyConversion;
 import com.bytegen.common.reload.event.EventNotifier;
 import com.bytegen.common.reload.event.EventPublisher;
 import com.bytegen.common.reload.event.GuavaEventNotifier;
-import com.bytegen.common.reload.resolver.PropertyResolver;
-import com.bytegen.common.reload.resolver.SubstitutingPropertyResolver;
+import com.bytegen.common.reload.resolver.PropertiesPropertyResolver;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -18,8 +17,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
 import org.springframework.beans.factory.BeanInitializationException;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.config.InstantiationAwareBeanPostProcessorAdapter;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.env.Environment;
@@ -32,7 +31,6 @@ import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ReflectionUtils;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -56,46 +54,40 @@ import java.util.*;
  * </p>
  */
 @Component
-public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProcessorAdapter {
+public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProcessorAdapter implements InitializingBean {
     private static final Logger log = LoggerFactory.getLogger(ReloadSourcePropertySupport.class);
 
     @Resource
     private Environment environment;
     @Resource
-    private ConfigurableBeanFactory configurableBeanFactory;
-    @Resource
     private ReloadResourceFactoryProcessor reloadResourceFactoryProcessor;
 
     private final EventNotifier eventNotifier = GuavaEventNotifier.getInstance();
-    private final PropertyResolver propertyResolver = new SubstitutingPropertyResolver();
+    private final PropertiesPropertyResolver propertyResolver = new PropertiesPropertyResolver();
+
     private final Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions = new HashMap<>();
 
-    private Set<EncodedResource> locations;
-    private Properties properties;
-    private PropertyConversion defaultPropertyConversion;
-
-    @PostConstruct
-    protected void startReloading() {
+    @Override
+    public void afterPropertiesSet() throws Exception {
         log.info("Loading Reloadable Properties resources...");
         Pair<Set<EncodedResource>, Properties> resourceAndProperties = loadResources(reloadResourceFactoryProcessor.getReloadResourceCandidates());
-        this.locations = resourceAndProperties.getLeft();
-        this.properties = resourceAndProperties.getRight();
+        Set<EncodedResource> locations = resourceAndProperties.getLeft();
+        Properties properties = resourceAndProperties.getRight();
+        propertyResolver.addProperties(properties);
 
         log.info("Registering ReloadPropertyPubSub for properties file changes");
-        if (null == locations || locations.isEmpty() || null == properties) {
+        if (null == locations || locations.isEmpty()) {
             log.info("Locations are empty, break for reloadable source property support...!");
             return;
         }
 
         try {
             log.info("Start watching for properties file changes");
-            EventPublisher publisher = new ReloadPropertyEventPublisher(properties, propertyResolver, eventNotifier);
+            EventPublisher publisher = new ReloadPropertyEventPublisher(propertyResolver, eventNotifier, beanPropertySubscriptions);
+            new ReloadPropertyEventSubscriber(eventNotifier, beanPropertySubscriptions);
+
             // Here we actually create and set a FileWatcher to monitor the given locations
             new PropertiesFileWatcher(locations, publisher).startWatching();
-
-            defaultPropertyConversion = new DefaultPropertyConversion(configurableBeanFactory.getTypeConverter());
-            new ReloadPropertyEventSubscriber(eventNotifier, beanPropertySubscriptions, defaultPropertyConversion);
-
         } catch (final IOException e) {
             log.error("Unable to start properties file watcher", e);
         }
@@ -189,14 +181,14 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
                     ReflectionUtils.makeAccessible(field);
                     validateFieldNotFinal(bean, field);
 
-                    final Object propertyValue = properties.get(annotation.value());
+                    final Object propertyValue = propertyResolver.resolvePlaceholders(annotation.value());
                     validatePropertyAvailableOrDefaultSet(bean, field, annotation, propertyValue);
 
                     if (null != propertyValue) {
                         log.info("Attempting to convert and set property [{}] on field [{}] for class [{}] to type [{}]",
                                 propertyValue, field.getName(), bean.getClass().getCanonicalName(), field.getType());
 
-                        final Object convertedProperty = convertPropertyForField(field, annotation.value(), annotation.conversion());
+                        final Object convertedProperty = convertPropertyForField(field, propertyValue, annotation.conversion());
 
                         log.info("Setting field [{}] of class [{}] with value [{}]",
                                 field.getName(), bean.getClass().getCanonicalName(), convertedProperty);
@@ -246,25 +238,21 @@ public class ReloadSourcePropertySupport extends InstantiationAwareBeanPostProce
     // Utility methods for class access //
     // ///////////////////////////////////
 
-    private Object convertPropertyForField(final Field field, final Object propertyName, final Class<? extends PropertyConversion> conversionClass) {
+    private Object convertPropertyForField(final Field field, final Object propertyValue, final Class<? extends PropertyConversion> conversionClass) {
         try {
             PropertyConversion conversion;
             if (conversionClass == PropertyConversion.class || conversionClass == DefaultPropertyConversion.class) {
-                conversion = defaultPropertyConversion;
+                conversion = DefaultPropertyConversion.getInstance();
             } else {
                 conversion = BeanUtils.instantiateClass(conversionClass);
             }
 
-            return conversion.convertPropertyForField(field, resolverProperty(propertyName));
+            return conversion.convertPropertyForField(field, propertyValue);
         } catch (final Throwable e) {
             throw new BeanInitializationException(
                     String.format("Unable to convert property for field [%s].  Value [%s] cannot be converted to [%s]",
-                            field.getName(), propertyName, field.getType()), e);
+                            field.getName(), propertyValue, field.getType()), e);
         }
-    }
-
-    private Object resolverProperty(final Object propertyName) {
-        return this.propertyResolver.resolveProperty(properties, propertyName);
     }
 
 }

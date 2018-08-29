@@ -1,4 +1,4 @@
-package com.bytegen.common.reload;
+package com.bytegen.common.reload.conversion;
 
 import com.bytegen.common.reload.conversion.PropertyConversion;
 import com.google.common.base.Function;

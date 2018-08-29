@@ -29,17 +29,14 @@ public class ReloadPropertyEventSubscriber implements EventSubscriber {
 
     private final EventNotifier eventNotifier;
     private final Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions;
-    private PropertyConversion defaultPropertyConversion;
 
     public ReloadPropertyEventSubscriber(EventNotifier eventNotifier,
-                                         Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions,
-                                         PropertyConversion defaultPropertyConversion) {
+                                         Map<String, Set<BeanPropertyHolder>> beanPropertySubscriptions) {
         Assert.notNull(eventNotifier, "EventNotifier can not be null");
 
         this.eventNotifier = eventNotifier;
         this.beanPropertySubscriptions = (null == beanPropertySubscriptions) ?
                 Collections.emptyMap() : beanPropertySubscriptions;
-        this.defaultPropertyConversion = defaultPropertyConversion;
 
         log.info("Registering ReloadPropertyEventSubscriber for properties file changes");
         registerPropertyReloader();
@@ -103,7 +100,7 @@ public class ReloadPropertyEventSubscriber implements EventSubscriber {
 
             PropertyConversion conversion;
             if (conversionClass == PropertyConversion.class || conversionClass == DefaultPropertyConversion.class) {
-                conversion = defaultPropertyConversion;
+                conversion = DefaultPropertyConversion.getInstance();
             } else {
                 conversion = BeanUtils.instantiateClass(conversionClass);
             }

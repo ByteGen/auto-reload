@@ -1,5 +1,6 @@
 package com.bytegen.common.reload;
 
+import com.bytegen.common.reload.bean.ReloadingPropertyBean;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,12 +39,16 @@ public class MainTest {
     @Before
     public void setUp() throws IOException {
         this.loadedProperties = PropertiesLoaderUtils.loadAllProperties(PROPERTIES);
+        assertThat(this.reloadingPropertyBean.getIntProperty(), is(1));
+        assertThat(this.reloadingPropertyBean.getBoolProperty(), is(true));
         assertThat(this.reloadingPropertyBean.getStringProperty(), is("Injected String Value"));
         assertThat(this.reloadingPropertyBean.getCompositeStringProperty(), is("Hello, World!"));
     }
 
     @After
     public void cleanUp() throws Exception {
+        this.loadedProperties.setProperty("reloadable.intValue", "1");
+        this.loadedProperties.setProperty("reloadable.boolValue", "true");
         this.loadedProperties.setProperty("reloadable.stringValue", "Injected String Value");
         this.loadedProperties.setProperty("reloadable.baseStringValue", "World");
         this.loadedProperties.setProperty("reloadable.compositeStringValue", "Hello, ${reloadable.baseStringValue}!");
